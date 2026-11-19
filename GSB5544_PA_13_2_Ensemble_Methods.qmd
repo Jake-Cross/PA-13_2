@@ -1,0 +1,352 @@
+---
+title: "Practice Activity 13.2: Ensemble Methods"
+format:
+  html:
+    embed-resources: true
+jupyter: python3
+---
+
+
+
+```{python}
+import pandas as pd
+
+import numpy as np
+```
+
+## Choose your own Regression
+
+**Working together with your partner**, choose an interesting data set to fit *regression* models for, that is, a data set with a *quantitative* target variable and several feature variables. Could be a data set that: we have used in class, we have used on an assignment, a data set from your project, you used in another course, or you just find interesting! You'll work together with your partner to develop *regression* models to predict the *quantitative* target (so you need to decide on the data set and target variable together with your partner).
+
+After you have decided on the data set and target variable:
+
+- One partner should fit a linear regression model
+- One partner should fit a k-nearest neighbors regression model
+
+If you're using an example from earlier in the class, you can use a model you have already come up with or you can try something new. Note: you do NOT have to agree on the features included in your models.
+
+After each partner has their model, **work together to combine your code and create two more models**:
+
+- An ensemble model that uses **voting**
+- An ensemble model that uses **stacking**
+
+For each of the four models (linear regression, knn regression, voting ensemble, stacking ensemble)
+
+1. Fit the model using the training data
+1. Use the fitted model to predict the target for a few observations of your choice, and compare the predictions
+1. Estimate the test RMSE using cross-validation, and compare the results
+
+Which model seems to work best?
+
+```{python}
+# YOUR CODE HERE. ADD CELLS AS NEEDED
+
+from sklearn.datasets import load_diabetes
+
+diabetes = load_diabetes(as_frame=True)
+
+df = diabetes.frame
+
+df.head()
+```
+
+```{python}
+
+X = df.drop(columns="target")
+y = df["target"]
+
+print("X shape:", X.shape)
+print("y shape:", y.shape)
+```
+
+```{python}
+
+from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+# Create our two models
+linear_model = LinearRegression()
+knn_model = KNeighborsRegressor(n_neighbors=5)
+
+# 5-fold cross-validation
+linear_scores = cross_val_score(
+    linear_model, X, y,
+    cv=5,
+    scoring="neg_root_mean_squared_error"
+)
+
+knn_scores = cross_val_score(
+    knn_model, X, y,
+    cv=5,
+    scoring="neg_root_mean_squared_error"
+)
+
+# Calculate average RMSE
+linear_rmse = -linear_scores.mean()
+knn_rmse = -knn_scores.mean()
+
+print("Linear Regression RMSE:", round(linear_rmse, 2))
+print("KNN Regression RMSE:", round(knn_rmse, 2))
+```
+
+```{python}
+
+from sklearn.ensemble import VotingRegressor
+
+# Combine linear regression and KNN
+voting_model = VotingRegressor(
+    estimators=[
+        ("linear", LinearRegression()),
+        ("knn", KNeighborsRegressor(n_neighbors=5))
+    ]
+)
+
+# 5-fold cross-validation
+voting_scores = cross_val_score(
+    voting_model, X, y,
+    cv=5,
+    scoring="neg_root_mean_squared_error"
+)
+
+voting_rmse = -voting_scores.mean()
+
+print("Linear Regression RMSE:", round(linear_rmse, 2))
+print("KNN Regression RMSE:", round(knn_rmse, 2))
+print("Voting Regressor RMSE:", round(voting_rmse, 2))
+```
+
+```{python}
+
+from sklearn.ensemble import StackingRegressor
+
+# Create stacking model
+stacking_model = StackingRegressor(
+    estimators=[
+        ("linear", LinearRegression()),
+        ("knn", KNeighborsRegressor(n_neighbors=5))
+    ],
+    final_estimator=LinearRegression(),
+    cv=5
+)
+
+# Evaluate using 5-fold cross-validation
+stacking_scores = cross_val_score(
+    stacking_model, X, y,
+    cv=5,
+    scoring="neg_root_mean_squared_error"
+)
+
+stacking_rmse = -stacking_scores.mean()
+
+# Compare all four models
+print("Linear Regression RMSE:", round(linear_rmse, 2))
+print("KNN Regression RMSE:", round(knn_rmse, 2))
+print("Voting Regressor RMSE:", round(voting_rmse, 2))
+print("Stacking Regressor RMSE:", round(stacking_rmse, 2))
+```
+
+```{python}
+
+# Fit all four regression models
+linear_model.fit(X, y)
+knn_model.fit(X, y)
+voting_model.fit(X, y)
+stacking_model.fit(X, y)
+
+# Compare predictions for the first 5 observations
+prediction_comparison = pd.DataFrame({
+    "Actual": y.iloc[:5].values,
+    "Linear Regression": linear_model.predict(X.iloc[:5]),
+    "KNN": knn_model.predict(X.iloc[:5]),
+    "Voting": voting_model.predict(X.iloc[:5]),
+    "Stacking": stacking_model.predict(X.iloc[:5])
+})
+
+prediction_comparison.round(2)
+```
+
+I compared four regression models using 5-fold cross-validation and RMSE. The stacking regressor performed the best with an RMSE of 54.56, followed closely by linear regression at 54.69. KNN had the highest RMSE at 60.13. The voting regressor improved on KNN but did not outperform linear regression. Overall, stacking gave us the lowest prediction error, although the improvement was pretty small.
+
+## Voting in Classification
+
+Suppose you have three models for predicting a categorical target:
+
+- k-nearest neighbors
+- logistic regression
+- decision tree
+
+How might you apply voting to create an ensemble model? Discuss conceptually with your partner. Create a concrete example to illustrate your method. Hint: There are two basic approaches to voting in classification; can you think of both?
+
+Note: You can assume a binary target, but the general idea of voting applies to multiclass problems. However, if any of the candidate *models* are not naturally multiclass (like logistic regression) then you have to consider things like OvR and OvO as we have discussed.
+
+We could combine KNN, logistic regression, and a decision tree using hard or soft voting. Hard voting takes the most common prediction from the three models, while soft voting averages their predicted probabilities.
+
+For example, if KNN and logistic regression predict that a customer will cancel, but the decision tree predicts they won't, hard voting would predict that they will cancel. However, if the three models give cancellation probabilities of 60%, 55%, and 10%, soft voting would average them to 41.7% and predict that the customer won't cancel.
+
+This shows how the two methods can give different results even when using the same models.
+
+## Choose your own Classification
+
+**Working together with your partner**, choose an interesting data set to fit *classification* models for, that is, a data set with a *categorical* target variable and several feature variables. Could be a data set that: we have used in class, we have used on an assignment, a data set from your project, you used in another course, or you just find interesting! You'll work together with your partner to develop *classification* models to predict the *categorical* target (so you need to decide on the data set and target variable together with your partner).
+
+After you have decided on the data set and target variable:
+
+- One partner should fit a k-nearest neighbors classification model
+- One partner should fit another classification model like decision tree or logistic regression
+
+If you're using an example from earlier in the class, you can use a model you have already come up with or you can try something new. Note: you do NOT have to agree on the features included in your models.
+
+After each partner has their model, **work together to combine your code and create an ensemble model that uses *voting***.
+
+For each of the three models (knn classification, other classification, voting ensemble)
+
+1. Fit the model using the training data
+1. Use the fitted model to predict the target for a few observations of your choice, and compare the predictions
+1. Estimate the test macro precision, recall, and F1 score using cross-validation, and compare the results
+
+Which model seems to work best?
+
+**Hint:** [`VotingClassifier`](https://scikit-learn.org/1.5/modules/generated/sklearn.ensemble.VotingClassifier.html) works almost identically to `VotingRegressor`.
+
+```{python}
+# YOUR CODE HERE. ADD CELLS AS NEEDED
+
+from sklearn.datasets import load_breast_cancer
+
+# Load classification dataset
+cancer = load_breast_cancer(as_frame=True)
+
+df_class = cancer.frame
+
+# Separate predictors and target
+X_class = df_class.drop(columns="target")
+y_class = df_class["target"]
+
+print("X shape:", X_class.shape)
+print("y shape:", y_class.shape)
+print("Target classes:", cancer.target_names)
+
+df_class.head()
+```
+
+```{python}
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+# Create KNN classification model
+knn_class = make_pipeline(
+    StandardScaler(),
+    KNeighborsClassifier(n_neighbors=5)
+)
+
+# Fit the model
+knn_class.fit(X_class, y_class)
+
+# Predict the first 5 observations
+knn_predictions = knn_class.predict(X_class.iloc[:5])
+
+print("KNN Predictions:", knn_predictions)
+print("Actual Values:", y_class.iloc[:5].values)
+```
+
+```{python}
+
+from sklearn.linear_model import LogisticRegression
+
+# Create logistic regression model
+logistic_class = make_pipeline(
+    StandardScaler(),
+    LogisticRegression(max_iter=1000)
+)
+
+# Fit the model
+logistic_class.fit(X_class, y_class)
+
+# Predict the first 5 observations
+logistic_predictions = logistic_class.predict(X_class.iloc[:5])
+
+print("KNN Predictions:", knn_predictions)
+print("Logistic Predictions:", logistic_predictions)
+print("Actual Values:", y_class.iloc[:5].values)
+```
+
+```{python}
+
+from sklearn.ensemble import VotingClassifier
+
+# Create voting classifier
+voting_class = VotingClassifier(
+    estimators=[
+        ("knn", knn_class),
+        ("logistic", logistic_class)
+    ],
+    voting="soft"
+)
+
+# Fit the voting classifier
+voting_class.fit(X_class, y_class)
+
+# Predict the first 5 observations
+voting_predictions = voting_class.predict(X_class.iloc[:5])
+
+print("KNN Predictions:", knn_predictions)
+print("Logistic Predictions:", logistic_predictions)
+print("Voting Predictions:", voting_predictions)
+print("Actual Values:", y_class.iloc[:5].values)
+```
+
+```{python}
+
+from sklearn.model_selection import cross_validate
+import pandas as pd
+
+# Models to compare
+models = {
+    "KNN": knn_class,
+    "Logistic Regression": logistic_class,
+    "Voting Classifier": voting_class
+}
+
+# Evaluation metrics
+scoring = [
+    "precision_macro",
+    "recall_macro",
+    "f1_macro"
+]
+
+# Evaluate each model using 5-fold cross-validation
+results = []
+
+for name, model in models.items():
+    scores = cross_validate(
+        model,
+        X_class,
+        y_class,
+        cv=5,
+        scoring=scoring
+    )
+
+    results.append({
+        "Model": name,
+        "Precision": scores["test_precision_macro"].mean(),
+        "Recall": scores["test_recall_macro"].mean(),
+        "F1": scores["test_f1_macro"].mean()
+    })
+
+# Display comparison table
+results_df = pd.DataFrame(results)
+
+results_df.round(4)
+```
+
+```{python}
+
+print(results_df.to_string(index=False))
+```
+
+I compared KNN, logistic regression, and a soft voting classifier using 5-fold cross-validation. Logistic regression performed the best across all three metrics, with a precision of 0.9820, recall of 0.9769, and F1 score of 0.9792. The voting classifier performed better than KNN but did not outperform logistic regression. Overall, logistic regression was the best model, showing that combining models does not always improve performance.
+
